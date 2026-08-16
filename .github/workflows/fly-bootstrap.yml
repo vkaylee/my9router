@@ -14,6 +14,23 @@ jobs:
       - name: Check out repository
         uses: actions/checkout@v4
 
+      - name: Read app name
+        run: |
+          python3 - <<'PY' >> "$GITHUB_ENV"
+          import tomllib
+
+          config = tomllib.load(open("fly.toml", "rb"))
+          values = {
+              "FLY_APP": config.get("app"),
+              "FLY_REGION": config.get("primary_region"),
+              "FLY_VOLUME": config.get("mounts", {}).get("source"),
+          }
+          for name, value in values.items():
+              if not isinstance(value, str) or not value:
+                  raise SystemExit(f"fly.toml must define {name}")
+              print(f"{name}={value}")
+          PY
+
       - name: Install flyctl
         uses: superfly/flyctl-actions/setup-flyctl@ed8efb33836e8b2096c7fd3ba1c8afe303ebbff1
 
@@ -22,33 +39,34 @@ jobs:
           FLY_API_TOKEN: ${{ secrets.FLY_BOOTSTRAP_TOKEN }}
           FLY_ORG: ${{ vars.FLY_ORG }}
         run: |
-          if ! flyctl apps create lee9router --org "$FLY_ORG"; then
-            flyctl apps show lee9router >/dev/null
+          if ! flyctl apps create "$FLY_APP" --org "$FLY_ORG"; then
+            flyctl apps show "$FLY_APP" >/dev/null
           fi
 
           for attempt in {1..12}; do
-            if flyctl apps show lee9router >/dev/null 2>&1; then
+            if flyctl apps show "$FLY_APP" >/dev/null 2>&1; then
               break
             fi
             sleep 5
           done
-          flyctl apps show lee9router >/dev/null
+          flyctl apps show "$FLY_APP" >/dev/null
 
       - name: Create volume if missing
         env:
           FLY_API_TOKEN: ${{ secrets.FLY_BOOTSTRAP_TOKEN }}
         run: |
           for attempt in {1..12}; do
-            if flyctl volumes list --app lee9router --json \
-              | jq -e 'any(.[]; .name == "9router_data" and .region == "sin")' >/dev/null; then
+            if flyctl volumes list --app "$FLY_APP" --json \
+              | jq -e --arg name "$FLY_VOLUME" --arg region "$FLY_REGION" \
+                'any(.[]; .name == $name and .region == $region)' >/dev/null; then
               exit 0
             fi
             sleep 5
           done
 
-          flyctl volumes create 9router_data \
-            --app lee9router \
-            --region sin \
+          flyctl volumes create "$FLY_VOLUME" \
+            --app "$FLY_APP" \
+            --region "$FLY_REGION" \
             --size 10
 
       - name: Set application secrets
@@ -68,7 +86,7 @@ jobs:
             "JWT_SECRET=$JWT_SECRET" \
             "API_KEY_SECRET=$API_KEY_SECRET" \
             "MACHINE_ID_SALT=$MACHINE_ID_SALT" \
-            --app lee9router
+            --app "$FLY_APP"
 
       - name: Deploy application
         env:
