@@ -1,0 +1,63 @@
+name: Bootstrap 9router on Fly.io
+
+on:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  bootstrap:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@v4
+
+      - name: Install flyctl
+        uses: superfly/flyctl-actions/setup-flyctl@ed8efb33836e8b2096c7fd3ba1c8afe303ebbff1
+
+      - name: Create app if missing
+        env:
+          FLY_API_TOKEN: ${{ secrets.FLY_BOOTSTRAP_TOKEN }}
+          FLY_ORG: ${{ vars.FLY_ORG }}
+        run: |
+          if ! flyctl apps show lee9router >/dev/null 2>&1; then
+            flyctl apps create lee9router --org "$FLY_ORG"
+          fi
+
+      - name: Create volume if missing
+        env:
+          FLY_API_TOKEN: ${{ secrets.FLY_BOOTSTRAP_TOKEN }}
+        run: |
+          if ! flyctl volumes list --app lee9router --json \
+            | jq -e 'any(.[]; .name == "9router_data" and .region == "sin")' >/dev/null; then
+            flyctl volumes create 9router_data \
+              --app lee9router \
+              --region sin \
+              --size 10
+          fi
+
+      - name: Set application secrets
+        env:
+          FLY_API_TOKEN: ${{ secrets.FLY_BOOTSTRAP_TOKEN }}
+          INITIAL_PASSWORD: ${{ secrets.INITIAL_PASSWORD }}
+          JWT_SECRET: ${{ secrets.JWT_SECRET }}
+          API_KEY_SECRET: ${{ secrets.API_KEY_SECRET }}
+          MACHINE_ID_SALT: ${{ secrets.MACHINE_ID_SALT }}
+        run: |
+          : "${INITIAL_PASSWORD:?Missing INITIAL_PASSWORD secret}"
+          : "${JWT_SECRET:?Missing JWT_SECRET secret}"
+          : "${API_KEY_SECRET:?Missing API_KEY_SECRET secret}"
+          : "${MACHINE_ID_SALT:?Missing MACHINE_ID_SALT secret}"
+          flyctl secrets set \
+            "INITIAL_PASSWORD=$INITIAL_PASSWORD" \
+            "JWT_SECRET=$JWT_SECRET" \
+            "API_KEY_SECRET=$API_KEY_SECRET" \
+            "MACHINE_ID_SALT=$MACHINE_ID_SALT" \
+            --app lee9router
+
+      - name: Deploy application
+        env:
+          FLY_API_TOKEN: ${{ secrets.FLY_BOOTSTRAP_TOKEN }}
+        run: flyctl deploy --remote-only --config ./fly.toml
