@@ -26,17 +26,30 @@ jobs:
             flyctl apps create lee9router --org "$FLY_ORG"
           fi
 
+          for attempt in {1..12}; do
+            if flyctl apps show lee9router >/dev/null 2>&1; then
+              break
+            fi
+            sleep 5
+          done
+          flyctl apps show lee9router >/dev/null
+
       - name: Create volume if missing
         env:
           FLY_API_TOKEN: ${{ secrets.FLY_BOOTSTRAP_TOKEN }}
         run: |
-          if ! flyctl volumes list --app lee9router --json \
-            | jq -e 'any(.[]; .name == "9router_data" and .region == "sin")' >/dev/null; then
-            flyctl volumes create 9router_data \
-              --app lee9router \
-              --region sin \
-              --size 10
-          fi
+          for attempt in {1..12}; do
+            if flyctl volumes list --app lee9router --json \
+              | jq -e 'any(.[]; .name == "9router_data" and .region == "sin")' >/dev/null; then
+              exit 0
+            fi
+            sleep 5
+          done
+
+          flyctl volumes create 9router_data \
+            --app lee9router \
+            --region sin \
+            --size 10
 
       - name: Set application secrets
         env:
