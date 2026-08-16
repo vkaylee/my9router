@@ -67,7 +67,8 @@ jobs:
           flyctl volumes create "$FLY_VOLUME" \
             --app "$FLY_APP" \
             --region "$FLY_REGION" \
-            --size 10
+            --size 10 \
+            --yes
 
       - name: Set application secrets
         env:
