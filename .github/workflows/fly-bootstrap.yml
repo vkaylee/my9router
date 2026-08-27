@@ -15,21 +15,23 @@ jobs:
         uses: actions/checkout@v4
 
       - name: Read app name
+        shell: python
         run: |
-          python3 - <<'PY' >> "$GITHUB_ENV"
+          import os
           import tomllib
 
           config = tomllib.load(open("fly.toml", "rb"))
+          mounts = config.get("mounts")
           values = {
               "FLY_APP": config.get("app"),
               "FLY_REGION": config.get("primary_region"),
-              "FLY_VOLUME": config.get("mounts", {}).get("source"),
+              "FLY_VOLUME": mounts[0].get("source") if isinstance(mounts, list) and mounts else None,
           }
           for name, value in values.items():
               if not isinstance(value, str) or not value:
                   raise SystemExit(f"fly.toml must define {name}")
-              print(f"{name}={value}")
-          PY
+              with open(os.environ["GITHUB_ENV"], "a") as env:
+                  env.write(f"{name}={value}\n")
 
       - name: Install flyctl
         uses: superfly/flyctl-actions/setup-flyctl@ed8efb33836e8b2096c7fd3ba1c8afe303ebbff1
@@ -42,11 +44,8 @@ jobs:
           if ! flyctl apps create "$FLY_APP" --org "$FLY_ORG"; then
             flyctl apps show "$FLY_APP" >/dev/null
           fi
-
           for attempt in {1..12}; do
-            if flyctl apps show "$FLY_APP" >/dev/null 2>&1; then
-              break
-            fi
+            flyctl apps show "$FLY_APP" >/dev/null 2>&1 && break
             sleep 5
           done
           flyctl apps show "$FLY_APP" >/dev/null
@@ -63,12 +62,7 @@ jobs:
             fi
             sleep 5
           done
-
-          flyctl volumes create "$FLY_VOLUME" \
-            --app "$FLY_APP" \
-            --region "$FLY_REGION" \
-            --size 10 \
-            --yes
+          flyctl volumes create "$FLY_VOLUME" --app "$FLY_APP" --region "$FLY_REGION" --size 10 --yes
 
       - name: Set application secrets
         env:
@@ -77,16 +71,23 @@ jobs:
           JWT_SECRET: ${{ secrets.JWT_SECRET }}
           API_KEY_SECRET: ${{ secrets.API_KEY_SECRET }}
           MACHINE_ID_SALT: ${{ secrets.MACHINE_ID_SALT }}
+          STORAGE_ENCRYPTION_KEY: ${{ secrets.STORAGE_ENCRYPTION_KEY }}
+          OMNIROUTE_WS_BRIDGE_SECRET: ${{ secrets.OMNIROUTE_WS_BRIDGE_SECRET }}
         run: |
           : "${INITIAL_PASSWORD:?Missing INITIAL_PASSWORD secret}"
           : "${JWT_SECRET:?Missing JWT_SECRET secret}"
           : "${API_KEY_SECRET:?Missing API_KEY_SECRET secret}"
           : "${MACHINE_ID_SALT:?Missing MACHINE_ID_SALT secret}"
+          : "${STORAGE_ENCRYPTION_KEY:?Missing STORAGE_ENCRYPTION_KEY secret}"
+          : "${OMNIROUTE_WS_BRIDGE_SECRET:?Missing OMNIROUTE_WS_BRIDGE_SECRET secret}"
           flyctl secrets set \
             "INITIAL_PASSWORD=$INITIAL_PASSWORD" \
             "JWT_SECRET=$JWT_SECRET" \
             "API_KEY_SECRET=$API_KEY_SECRET" \
             "MACHINE_ID_SALT=$MACHINE_ID_SALT" \
+            "STORAGE_ENCRYPTION_KEY=$STORAGE_ENCRYPTION_KEY" \
+            "OMNIROUTE_WS_BRIDGE_SECRET=$OMNIROUTE_WS_BRIDGE_SECRET" \
+            "DATA_DIR=/app/data" \
             --app "$FLY_APP"
 
       - name: Deploy application
