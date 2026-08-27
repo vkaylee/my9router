@@ -12,7 +12,7 @@ primary_region = "sin"
   AUTH_COOKIE_SECURE = "true"
   REQUIRE_API_KEY = "true"
 
-[[mounts]]
+[mounts]
   source = "9router_data"
   destination = "/app/data"
 
