@@ -16,6 +16,7 @@ primary_region = "nrt"
   destination = "/data/cpa"
 
 [http_service]
+  processes = ["app"]
   internal_port = 8317
   force_https = true
   auto_start_machines = true
