@@ -1,5 +1,5 @@
 app = "lee-cpa"
-primary_region = "sin"
+primary_region = "nrt"
 
 [build]
   image = "eceasy/cli-proxy-api:v7.2.159"
