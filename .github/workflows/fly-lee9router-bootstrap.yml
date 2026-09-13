@@ -1,4 +1,4 @@
-name: Bootstrap 9router on Fly.io
+name: Bootstrap lee9router on Fly.io
 
 on:
   workflow_dispatch:
@@ -19,7 +19,7 @@ jobs:
           python3 - <<'PY' >> "$GITHUB_ENV"
           import tomllib
 
-          config = tomllib.load(open("fly.toml", "rb"))
+          config = tomllib.load(open("fly-lee9router.toml", "rb"))
           values = {
               "FLY_APP": config.get("app"),
               "FLY_REGION": config.get("primary_region"),
@@ -27,7 +27,7 @@ jobs:
           }
           for name, value in values.items():
               if not isinstance(value, str) or not value:
-                  raise SystemExit(f"fly.toml must define {name}")
+                  raise SystemExit(f"fly-lee9router.toml must define {name}")
               print(f"{name}={value}")
           PY
 
@@ -36,7 +36,7 @@ jobs:
 
       - name: Create app if missing
         env:
-          FLY_API_TOKEN: ${{ secrets.FLY_BOOTSTRAP_TOKEN }}
+          FLY_API_TOKEN: ${{ secrets.FLY_LEE9ROUTER_BOOTSTRAP_TOKEN || secrets.FLY_BOOTSTRAP_TOKEN }}
           FLY_ORG: ${{ vars.FLY_ORG }}
         run: |
           if ! flyctl apps create "$FLY_APP" --org "$FLY_ORG"; then
@@ -53,7 +53,7 @@ jobs:
 
       - name: Create volume if missing
         env:
-          FLY_API_TOKEN: ${{ secrets.FLY_BOOTSTRAP_TOKEN }}
+          FLY_API_TOKEN: ${{ secrets.FLY_LEE9ROUTER_BOOTSTRAP_TOKEN || secrets.FLY_BOOTSTRAP_TOKEN }}
         run: |
           for attempt in {1..12}; do
             if flyctl volumes list --app "$FLY_APP" --json \
@@ -72,7 +72,7 @@ jobs:
 
       - name: Set application secrets
         env:
-          FLY_API_TOKEN: ${{ secrets.FLY_BOOTSTRAP_TOKEN }}
+          FLY_API_TOKEN: ${{ secrets.FLY_LEE9ROUTER_BOOTSTRAP_TOKEN || secrets.FLY_BOOTSTRAP_TOKEN }}
           INITIAL_PASSWORD: ${{ secrets.INITIAL_PASSWORD }}
           JWT_SECRET: ${{ secrets.JWT_SECRET }}
           API_KEY_SECRET: ${{ secrets.API_KEY_SECRET }}
@@ -91,5 +91,5 @@ jobs:
 
       - name: Deploy application
         env:
-          FLY_API_TOKEN: ${{ secrets.FLY_BOOTSTRAP_TOKEN }}
-        run: flyctl deploy --remote-only --config ./fly.toml
+          FLY_API_TOKEN: ${{ secrets.FLY_LEE9ROUTER_BOOTSTRAP_TOKEN || secrets.FLY_BOOTSTRAP_TOKEN }}
+        run: flyctl deploy --remote-only --config ./fly-lee9router.toml
