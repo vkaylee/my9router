@@ -9,7 +9,7 @@ primary_region = "nrt"
   WRITABLE_PATH = "/data/cpa"
 
 [processes]
-  app = '''sh -c 'test -f /data/cpa/config.yaml || (mkdir -p /data/cpa/auths && sed "s|~/.cli-proxy-api|/data/cpa/auths|" /CLIProxyAPI/config.example.yaml > /data/cpa/config.yaml); exec /CLIProxyAPI/CLIProxyAPI -config /data/cpa/config.yaml' '''
+  app = '''sh -c 'set -e; test -f /data/cpa/config.yaml || (mkdir -p /data/cpa/auths && sed "s|~/.cli-proxy-api|/data/cpa/auths|" /CLIProxyAPI/config.example.yaml > /data/cpa/config.yaml); exec /CLIProxyAPI/CLIProxyAPI -config /data/cpa/config.yaml' '''
 
 [mounts]
   source = "lee_cpa_data"
