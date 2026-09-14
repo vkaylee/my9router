@@ -2,7 +2,7 @@ app = "lee-cpa"
 primary_region = "nrt"
 
 [build]
-  image = "eceasy/cli-proxy-api:v7.2.159"
+  image = "eceasy/cli-proxy-api:latest"
 
 [env]
   DEPLOY = "cloud"
