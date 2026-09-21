@@ -2,10 +2,10 @@ app = "lee9router"
 primary_region = "sin"
 
 [build]
-  image = "luqmenul/9router-go:latest"
+  image = "decolua/9router:latest"
 
 [env]
-  DATA_DIR = "/data"
+  DATA_DIR = "/app/data"
   PORT = "20128"
   HOSTNAME = "0.0.0.0"
   NODE_ENV = "production"
@@ -14,7 +14,7 @@ primary_region = "sin"
 
 [mounts]
   source = "9router_data"
-  destination = "/data"
+  destination = "/app/data"
 
 [http_service]
   internal_port = 20128
@@ -23,3 +23,9 @@ primary_region = "sin"
   auto_start_machines = true
   min_machines_running = 1
 
+  [[http_service.checks]]
+    method = "GET"
+    path = "/api/health"
+    interval = "15s"
+    timeout = "5s"
+    grace_period = "30s"
