@@ -2,7 +2,7 @@ app = "lee9router"
 primary_region = "sin"
 
 [build]
-  image = "decolua/9router:latest"
+  image = "luqmenul/9router-go:latest"
 
 [env]
   DATA_DIR = "/app/data"
