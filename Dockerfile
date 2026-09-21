@@ -60,7 +60,6 @@ COPY --from=dashboard-builder /app/src/mitm ./src/mitm
 COPY --from=dashboard-builder /app/node_modules/node-forge ./node_modules/node-forge
 COPY --from=dashboard-builder /app/node_modules/next ./node_modules/next
 COPY --from=dashboard-builder /app/node_modules/sql.js ./node_modules/sql.js
-COPY --from=dashboard-builder /app/node_modules/node-machine-id ./node_modules/node-machine-id
 COPY nginx.conf /etc/nginx/nginx.conf
 COPY combined-entrypoint.sh /usr/local/bin/combined-entrypoint.sh
 
