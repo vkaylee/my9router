@@ -10,9 +10,15 @@ on:
       - completed
   workflow_dispatch:
     inputs:
-      release_tag:
-        description: "Optional upstream release tag, for example v0.5.81"
+      dashboard_version:
+        description: "9router dashboard release tag"
         required: false
+        default: "v0.5.81"
+        type: string
+      go_version:
+        description: "9router-go release tag"
+        required: false
+        default: "v1.8.18"
         type: string
 
 permissions:
@@ -23,8 +29,9 @@ concurrency:
   cancel-in-progress: false
 
 env:
-  UPSTREAM_REPOSITORY: decolua/9router
   FLY_APP: lee9router
+  DASHBOARD_VERSION: v0.5.81
+  GO_VERSION: v1.8.18
 
 jobs:
   release:
@@ -41,57 +48,36 @@ jobs:
       - name: Set up Docker Buildx
         uses: docker/setup-buildx-action@v3
 
-      - name: Resolve upstream release tag
-        id: release
+      - name: Resolve release versions
+        id: versions
         env:
-          RELEASE_TAG_INPUT: ${{ inputs.release_tag }}
+          DASHBOARD_VERSION_INPUT: ${{ inputs.dashboard_version }}
+          GO_VERSION_INPUT: ${{ inputs.go_version }}
         run: |
           set -euo pipefail
-
-          upstream_url="https://github.com/$UPSTREAM_REPOSITORY.git"
-          if [ -n "$RELEASE_TAG_INPUT" ]; then
-            release_tag="$RELEASE_TAG_INPUT"
-            git ls-remote --exit-code --refs "$upstream_url" "refs/tags/$release_tag" >/dev/null
-          else
-            release_tag="$(git ls-remote --tags --refs "$upstream_url" \
-              | awk -F/ '$3 ~ /^v[0-9]+(\.[0-9]+){1,2}([.-][0-9A-Za-z.-]+)?$/ { print $3 }' \
-              | sort -V \
-              | tail -n 1)"
-          fi
-
-          if [ -z "$release_tag" ]; then
-            echo "No upstream release tag was found" >&2
-            exit 1
-          fi
-          if [[ ! "$release_tag" =~ ^v[0-9]+(\.[0-9]+){1,2}([.-][0-9A-Za-z.-]+)?$ ]]; then
-            echo "Unsupported upstream release tag: $release_tag" >&2
-            exit 1
-          fi
-
-          release_url="https://github.com/$UPSTREAM_REPOSITORY/releases/tag/$release_tag"
-          printf 'tag=%s\n' "$release_tag" >> "$GITHUB_OUTPUT"
-          printf 'url=%s\n' "$release_url" >> "$GITHUB_OUTPUT"
-          printf 'Resolved `%s` (%s)\n' "$release_tag" "$release_url" >> "$GITHUB_STEP_SUMMARY"
-
-      - name: Check out upstream release source
-        env:
-          RELEASE_TAG: ${{ steps.release.outputs.tag }}
-        run: git clone --depth 1 --branch "$RELEASE_TAG" "https://github.com/$UPSTREAM_REPOSITORY.git" upstream
+          dashboard_version="${DASHBOARD_VERSION_INPUT:-$DASHBOARD_VERSION}"
+          go_version="${GO_VERSION_INPUT:-$GO_VERSION}"
+          git ls-remote --exit-code --refs \
+            https://github.com/decolua/9router.git "refs/tags/$dashboard_version" >/dev/null
+          git ls-remote --exit-code --refs \
+            https://github.com/luqman-v1/9router-go.git "refs/tags/$go_version" >/dev/null
+          printf 'dashboard_version=%s\n' "$dashboard_version" >> "$GITHUB_OUTPUT"
+          printf 'go_version=%s\n' "$go_version" >> "$GITHUB_OUTPUT"
+          printf 'Dashboard source tag: `%s`\nGo binary release: `%s`\n' \
+            "$dashboard_version" "$go_version" >> "$GITHUB_STEP_SUMMARY"
 
       - name: Derive immutable image reference
         id: image
         env:
-          RELEASE_TAG: ${{ steps.release.outputs.tag }}
-        working-directory: upstream
+          DASHBOARD_TAG: ${{ steps.versions.outputs.dashboard_version }}
+          GO_TAG: ${{ steps.versions.outputs.go_version }}
         run: |
           set -euo pipefail
-          release_commit="$(git rev-parse HEAD)"
-          image_tag="${RELEASE_TAG}-${release_commit:0:12}"
+          image_tag="dashboard-${DASHBOARD_TAG}-go-${GO_TAG}"
           image="registry.fly.io/${FLY_APP}:${image_tag}"
-          printf 'commit=%s\n' "$release_commit" >> "$GITHUB_OUTPUT"
           printf 'tag=%s\n' "$image_tag" >> "$GITHUB_OUTPUT"
           printf 'ref=%s\n' "$image" >> "$GITHUB_OUTPUT"
-          printf 'Source commit: `%s`\nImage: `%s`\n' "$release_commit" "$image" >> "$GITHUB_STEP_SUMMARY"
+          printf 'Image: `%s`\n' "$image" >> "$GITHUB_STEP_SUMMARY"
 
       - name: Skip when release is already deployed
         id: deployed
@@ -104,7 +90,6 @@ jobs:
           machines="$(flyctl machine list --app "$FLY_APP" --json)"
           if jq -e --arg image "$IMAGE" 'length > 0 and all(.[]; .config.image == $image)' <<<"$machines" >/dev/null; then
             echo "Release image is already deployed: $IMAGE"
-            echo "Already deployed: \\`$IMAGE\\`" >> "$GITHUB_STEP_SUMMARY"
             echo "already-deployed=true" >> "$GITHUB_OUTPUT"
           else
             echo "already-deployed=false" >> "$GITHUB_OUTPUT"
@@ -114,22 +99,24 @@ jobs:
         if: steps.deployed.outputs.already-deployed != 'true'
         env:
           FLY_API_TOKEN: ${{ secrets.FLY_LEE9ROUTER_API_TOKEN || secrets.FLY_API_TOKEN }}
-        run: |
-          set -euo pipefail
-          flyctl auth docker
+        run: flyctl auth docker
 
-      - name: Build and push release image
+      - name: Build and push combined image
         if: steps.deployed.outputs.already-deployed != 'true'
         env:
           IMAGE: ${{ steps.image.outputs.ref }}
+          DASHBOARD_TAG: ${{ steps.versions.outputs.dashboard_version }}
+          GO_TAG: ${{ steps.versions.outputs.go_version }}
         run: |
           set -euo pipefail
           docker buildx build \
-            --file upstream/Dockerfile \
+            --file Dockerfile \
+            --build-arg "DASHBOARD_VERSION=$DASHBOARD_TAG" \
+            --build-arg "GO_VERSION=$GO_TAG" \
             --platform linux/amd64 \
             --tag "$IMAGE" \
             --push \
-            upstream
+            .
 
       - name: Deploy release image to Fly.io
         if: steps.deployed.outputs.already-deployed != 'true'

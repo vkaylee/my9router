@@ -87,3 +87,8 @@ jobs:
             "API_KEY_SECRET=$API_KEY_SECRET" \
             "MACHINE_ID_SALT=$MACHINE_ID_SALT" \
             --app "$FLY_APP"
+
+      - name: Deploy application
+        env:
+          FLY_API_TOKEN: ${{ secrets.FLY_LEE9ROUTER_BOOTSTRAP_TOKEN || secrets.FLY_BOOTSTRAP_TOKEN }}
+        run: flyctl deploy --remote-only --config ./fly-lee9router.toml
