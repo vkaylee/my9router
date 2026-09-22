@@ -81,7 +81,19 @@ jobs:
           GO_TAG: ${{ steps.versions.outputs.go_version }}
         run: |
           set -euo pipefail
-          image_tag="dashboard-${DASHBOARD_TAG}-go-${GO_TAG}"
+          # Deployment config (nginx.conf, Dockerfile, entrypoint, Fly config)
+          # changes the built image, so it must change the tag too. Otherwise
+          # the already-deployed check below skips config-only changes.
+          # Hash every tracked file except CI workflow definitions, so new
+          # config files are picked up without maintaining a list here.
+          config_hash="$(
+            git ls-files -z ':!.github' \
+              | sort -z \
+              | xargs -0 sha256sum \
+              | sha256sum \
+              | cut -c1-12
+          )"
+          image_tag="dashboard-${DASHBOARD_TAG}-go-${GO_TAG}-cfg-${config_hash}"
           image="registry.fly.io/${FLY_APP}:${image_tag}"
           printf 'tag=%s\n' "$image_tag" >> "$GITHUB_OUTPUT"
           printf 'ref=%s\n' "$image" >> "$GITHUB_OUTPUT"
