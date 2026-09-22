@@ -11,14 +11,14 @@ on:
   workflow_dispatch:
     inputs:
       dashboard_version:
-        description: "9router dashboard release tag"
+        description: "9router dashboard release tag; empty uses newest tag"
         required: false
-        default: "v0.5.81"
+        default: ""
         type: string
       go_version:
-        description: "9router-go release tag"
+        description: "9router-go release tag; empty uses newest tag"
         required: false
-        default: "v1.8.18"
+        default: ""
         type: string
 
 permissions:
@@ -30,8 +30,6 @@ concurrency:
 
 env:
   FLY_APP: lee9router
-  DASHBOARD_VERSION: v0.5.81
-  GO_VERSION: v1.8.18
 
 jobs:
   release:
@@ -55,8 +53,18 @@ jobs:
           GO_VERSION_INPUT: ${{ inputs.go_version }}
         run: |
           set -euo pipefail
-          dashboard_version="${DASHBOARD_VERSION_INPUT:-$DASHBOARD_VERSION}"
-          go_version="${GO_VERSION_INPUT:-$GO_VERSION}"
+
+          latest_tag() {
+            git ls-remote --tags --refs "$1" 'refs/tags/v*' \
+              | sed 's#.*refs/tags/##' \
+              | sort -V \
+              | awk 'END { print }'
+          }
+
+          dashboard_version="${DASHBOARD_VERSION_INPUT:-$(latest_tag https://github.com/decolua/9router.git)}"
+          go_version="${GO_VERSION_INPUT:-$(latest_tag https://github.com/luqman-v1/9router-go.git)}"
+          test -n "$dashboard_version"
+          test -n "$go_version"
           git ls-remote --exit-code --refs \
             https://github.com/decolua/9router.git "refs/tags/$dashboard_version" >/dev/null
           git ls-remote --exit-code --refs \

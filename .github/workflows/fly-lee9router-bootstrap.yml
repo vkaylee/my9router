@@ -88,7 +88,32 @@ jobs:
             "MACHINE_ID_SALT=$MACHINE_ID_SALT" \
             --app "$FLY_APP"
 
+      - name: Resolve release versions
+        id: versions
+        run: |
+          set -euo pipefail
+
+          latest_tag() {
+            git ls-remote --tags --refs "$1" 'refs/tags/v*' \
+              | sed 's#.*refs/tags/##' \
+              | sort -V \
+              | awk 'END { print }'
+          }
+
+          dashboard_version="$(latest_tag https://github.com/decolua/9router.git)"
+          go_version="$(latest_tag https://github.com/luqman-v1/9router-go.git)"
+          test -n "$dashboard_version"
+          test -n "$go_version"
+          printf 'dashboard_version=%s\n' "$dashboard_version" >> "$GITHUB_OUTPUT"
+          printf 'go_version=%s\n' "$go_version" >> "$GITHUB_OUTPUT"
+
       - name: Deploy application
         env:
           FLY_API_TOKEN: ${{ secrets.FLY_LEE9ROUTER_BOOTSTRAP_TOKEN || secrets.FLY_BOOTSTRAP_TOKEN }}
-        run: flyctl deploy --remote-only --config ./fly-lee9router.toml
+          DASHBOARD_VERSION: ${{ steps.versions.outputs.dashboard_version }}
+          GO_VERSION: ${{ steps.versions.outputs.go_version }}
+        run: |
+          flyctl deploy --remote-only \
+            --config ./fly-lee9router.toml \
+            --build-arg "DASHBOARD_VERSION=$DASHBOARD_VERSION" \
+            --build-arg "GO_VERSION=$GO_VERSION"

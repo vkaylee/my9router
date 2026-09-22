@@ -1,7 +1,7 @@
 # syntax=docker/dockerfile:1.7
 ARG NODE_IMAGE=node:22-alpine
-ARG DASHBOARD_VERSION=v0.5.81
-ARG GO_VERSION=v1.8.18
+ARG DASHBOARD_VERSION=
+ARG GO_VERSION=
 ARG GO_SHA256=
 
 FROM ${NODE_IMAGE} AS dashboard-builder
@@ -11,7 +11,8 @@ WORKDIR /app
 RUN apk --no-cache upgrade && apk --no-cache add \
     ca-certificates curl python3 make g++ linux-headers
 
-RUN curl -fsSL "https://github.com/decolua/9router/archive/refs/tags/${DASHBOARD_VERSION}.tar.gz" \
+RUN test -n "${DASHBOARD_VERSION}" || { echo "DASHBOARD_VERSION build arg is required; the release workflow resolves the newest upstream tag" >&2; exit 1; }; \
+    curl -fsSL "https://github.com/decolua/9router/archive/refs/tags/${DASHBOARD_VERSION}.tar.gz" \
     | tar -xz --strip-components=1
 
 ENV NEXT_TELEMETRY_DISABLED=1
@@ -35,7 +36,8 @@ ENV HOSTNAME=0.0.0.0
 ENV NEXT_TELEMETRY_DISABLED=1
 ENV DATA_DIR=/app/data
 
-RUN apk --no-cache upgrade && apk --no-cache add \
+RUN test -n "${GO_VERSION}" || { echo "GO_VERSION build arg is required; the release workflow resolves the newest upstream tag" >&2; exit 1; }; \
+    apk --no-cache upgrade && apk --no-cache add \
     ca-certificates curl gcompat nginx su-exec \
     && case "${TARGETARCH}" in \
          amd64) GO_ARCH=amd64 ;; \
